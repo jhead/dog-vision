@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
   pull-requests: write
 
 concurrency:
@@ -31,9 +29,19 @@ jobs:
         run: npm ci
         
       - name: Build application for PR preview
-        run: npm run build
+        run: |
+          echo "Building for PR #${{ github.event.number }}"
+          echo "BasePath will be: /dog-vision/pr-${{ github.event.number }}"
+          npm run build
         env:
           GITHUB_PR_NUMBER: ${{ github.event.number }}
+        
+      - name: Debug build output
+        run: |
+          echo "Build completed. Checking output directory:"
+          ls -la ./out/
+          echo "Checking index.html content:"
+          head -n 5 ./out/index.html
         
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
