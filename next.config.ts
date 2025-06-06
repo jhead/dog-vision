@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // GitHub Pages deployment configuration
+  output: 'export',
+  trailingSlash: true,
+  basePath: '/dog-vision',
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
