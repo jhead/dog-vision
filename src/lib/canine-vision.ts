@@ -11,6 +11,8 @@
 
 // Canine cone spectral sensitivities approximated for sRGB conversion
 // This matrix transforms sRGB to approximate canine LMS (Long-Short) space
+// Note: These are simplified approximations. For maximum accuracy, future versions
+// could use precise spectral sensitivity curves with multispectral image data.
 const canineVisionMatrix = [
   // Dog S-cone response (blue-like, ~440nm peak)
   [0.05, 0.22, 0.73],
