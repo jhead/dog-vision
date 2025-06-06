@@ -1,3 +1,9 @@
+import ColorBlindVisionApp from '@/components/ColorBlindVisionApp';
+
 export default function Home() {
-  return <></>;
+  return (
+    <main>
+      <ColorBlindVisionApp />
+    </main>
+  );
 }
