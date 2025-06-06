@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'ColorBlind Vision',
-  description: 'Simulate red-green color blindness on your photos.',
+  title: 'DogVision',
+  description: 'See the world through a dog\'s eyes! Experience how your furry friend sees colors.',
 };
 
 export default function RootLayout({
