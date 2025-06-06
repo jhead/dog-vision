@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, MediaDeviceInfo } from 'react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Upload, Image as ImageIcon, Camera, AlertTriangle } from 'lucide-react';
+import { Loader2, Upload, Image as ImageIcon, Camera, AlertTriangle, RefreshCcw, ScreenShare, Minimize } from 'lucide-react';
 import { applyDeuteranopiaFilter } from '@/lib/colorblind';
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,9 +32,17 @@ export default function ColorBlindVisionApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const [cameraStreamState, setCameraStreamState] = useState<MediaStream | null>(null); // For UI reactivity
+  const [cameraStreamState, setCameraStreamState] = useState<MediaStream | null>(null); 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isCameraInitializing, setIsCameraInitializing] = useState<boolean>(false);
+
+  // State for camera switching and fullscreen
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState<boolean>(false);
+  const cameraViewRef = useRef<HTMLDivElement>(null);
+  const [isFullscreenActive, setIsFullscreenActive] = useState<boolean>(false);
+
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -114,9 +122,9 @@ export default function ColorBlindVisionApp() {
     setCameraStreamState(null);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
-      if (videoRef.current.srcObject === null && videoRef.current.pause) { // Ensure it's pausable
+      if (videoRef.current.srcObject === null && videoRef.current.pause) { 
         videoRef.current.pause();
-        videoRef.current.load(); // Reset video element
+        videoRef.current.load(); 
       }
     }
     if (canvasRef.current) {
@@ -126,50 +134,137 @@ export default function ColorBlindVisionApp() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
     }
-    setIsCameraInitializing(false);
   }, []);
 
-  useEffect(() => { // Handles camera initialization based on mode
-    if (mode === 'camera') {
-      if (!cameraStreamRef.current && hasCameraPermission !== false) {
-        const requestCamera = async () => {
-          setIsCameraInitializing(true);
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            cameraStreamRef.current = stream;
-            setCameraStreamState(stream); // For UI reactivity
-            setHasCameraPermission(true);
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              videoRef.current.play().catch(err => console.error("Error playing video:", err));
-            }
-          } catch (error) {
-            console.error('Error accessing camera:', error);
-            setHasCameraPermission(false);
-            toast({
-              variant: 'destructive',
-              title: 'Camera Access Denied',
-              description: 'Please enable camera permissions in your browser settings.',
-            });
-          } finally {
-            setIsCameraInitializing(false);
-          }
-        };
-        requestCamera();
+  useEffect(() => {
+    let isMounted = true;
+
+    const manageCameraStream = async () => {
+      if (!isMounted || mode !== 'camera' || hasCameraPermission === false) {
+        if (hasCameraPermission === false && cameraStreamRef.current) {
+            stopCurrentCamera();
+        }
+        return;
       }
+
+      setIsCameraInitializing(true);
+      if (selectedDeviceId || videoDevices.length > 0) setIsSwitchingCamera(true);
+
+
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach(track => track.stop());
+        cameraStreamRef.current = null;
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+      setCameraStreamState(null);
+
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const currentVideoDevices = allDevices.filter(device => device.kind === 'videoinput');
+        if (isMounted) {
+            setVideoDevices(currentVideoDevices);
+        }
+
+        let deviceIdToUse = selectedDeviceId;
+
+        if (!deviceIdToUse && currentVideoDevices.length > 0) {
+          const rearCamera = currentVideoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
+          deviceIdToUse = rearCamera?.deviceId || currentVideoDevices[0]?.deviceId;
+          
+          if (isMounted && deviceIdToUse) {
+            setSelectedDeviceId(deviceIdToUse);
+            // Effect will re-run with new selectedDeviceId, exit current run.
+            setIsCameraInitializing(false); 
+            setIsSwitchingCamera(false); // Resetting flags for next run
+            return; 
+          }
+        }
+        
+        if (!deviceIdToUse && currentVideoDevices.length === 0 && isMounted) {
+            toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected.' });
+            setHasCameraPermission(false);
+            setIsCameraInitializing(false); setIsSwitchingCamera(false);
+            return;
+        }
+        if (!deviceIdToUse && isMounted) {
+            toast({ variant: 'destructive', title: 'Camera Selection Error', description: 'Could not select a camera.' });
+            setIsCameraInitializing(false); setIsSwitchingCamera(false);
+            return;
+        }
+
+        const constraints: MediaStreamConstraints = { video: { deviceId: { exact: deviceIdToUse } } };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        if (isMounted) {
+          cameraStreamRef.current = stream;
+          setCameraStreamState(stream);
+          setHasCameraPermission(true);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+              if (isMounted && videoRef.current) {
+                 videoRef.current.play().catch(err => {
+                    console.error("Error playing video:", err);
+                    toast({ variant: "destructive", title: "Video Play Error", description: "Could not play camera stream." });
+                });
+              }
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        if (isMounted) {
+          setHasCameraPermission(false);
+          toast({
+            variant: 'destructive',
+            title: 'Camera Access Error',
+            description: 'Please enable camera permissions or try a different camera.',
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setIsCameraInitializing(false);
+          setIsSwitchingCamera(false);
+        }
+      }
+    };
+
+    if (mode === 'camera') {
+        if (hasCameraPermission !== false) {
+            manageCameraStream();
+        }
     } else {
       stopCurrentCamera();
+      if (isMounted) {
+        // Don't clear videoDevices or selectedDeviceId here, user might want to switch back.
+        // If fullscreen was active, it should be exited by browser or user.
+      }
     }
-  }, [mode, hasCameraPermission, stopCurrentCamera, toast]);
 
-  useEffect(() => { // Handles frame processing loop
+    return () => {
+      isMounted = false;
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach(track => track.stop());
+        cameraStreamRef.current = null;
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+         videoRef.current.srcObject = null;
+      }
+    };
+  }, [mode, selectedDeviceId, hasCameraPermission, stopCurrentCamera, toast]);
+
+  useEffect(() => { 
     const videoElement = videoRef.current;
     const canvasElement = canvasRef.current;
 
     if (mode === 'camera' && cameraStreamState && videoElement && canvasElement) {
       const processFrame = () => {
         if (!videoRef.current || !canvasRef.current || videoRef.current.paused || videoRef.current.ended || videoRef.current.readyState < 3) {
-          if(cameraStreamRef.current) animationFrameIdRef.current = requestAnimationFrame(processFrame); // Keep trying if stream exists
+          if(cameraStreamRef.current && animationFrameIdRef.current !== null) animationFrameIdRef.current = requestAnimationFrame(processFrame);
           return;
         }
         const video = videoRef.current;
@@ -188,41 +283,70 @@ export default function ColorBlindVisionApp() {
             ctx.putImageData(transformedImageData, 0, 0);
           } catch (e) {
             console.error("Error processing frame:", e);
-            // Optionally stop or notify user if errors persist
           }
         }
-        if(cameraStreamRef.current) animationFrameIdRef.current = requestAnimationFrame(processFrame);
+        if(cameraStreamRef.current && animationFrameIdRef.current !== null) animationFrameIdRef.current = requestAnimationFrame(processFrame);
       };
       
       const handleCanPlay = () => {
-        if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
-        if(cameraStreamRef.current) animationFrameIdRef.current = requestAnimationFrame(processFrame);
+        if (animationFrameIdRef.current !== null) cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = requestAnimationFrame(processFrame);
       };
 
       videoElement.addEventListener('canplay', handleCanPlay);
-      if (videoElement.readyState >= 3) handleCanPlay(); // If already playable
+      if (videoElement.readyState >= 3) handleCanPlay();
 
       return () => {
         videoElement.removeEventListener('canplay', handleCanPlay);
-        if (animationFrameIdRef.current) {
+        if (animationFrameIdRef.current !== null) {
           cancelAnimationFrame(animationFrameIdRef.current);
           animationFrameIdRef.current = null;
         }
       };
     } else {
-      if (animationFrameIdRef.current) {
+      if (animationFrameIdRef.current !== null) {
         cancelAnimationFrame(animationFrameIdRef.current);
         animationFrameIdRef.current = null;
       }
     }
   }, [mode, cameraStreamState]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCurrentCamera();
-    };
+  useEffect(() => { // Cleanup on unmount
+    return () => stopCurrentCamera();
   }, [stopCurrentCamera]);
+
+  const handleSwitchCamera = useCallback(async () => {
+    if (videoDevices.length < 2 || isSwitchingCamera) return;
+    
+    const currentIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
+    const nextIndex = (currentIndex + 1) % videoDevices.length;
+    const nextDeviceId = videoDevices[nextIndex]?.deviceId;
+
+    if (nextDeviceId && nextDeviceId !== selectedDeviceId) {
+      setSelectedDeviceId(nextDeviceId); // This will trigger the main camera useEffect
+    }
+  }, [videoDevices, selectedDeviceId, isSwitchingCamera]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreenActive(!!document.fullscreenElement && document.fullscreenElement === cameraViewRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!cameraViewRef.current) return;
+    if (!document.fullscreenElement) {
+      cameraViewRef.current.requestFullscreen()
+        .catch(err => toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` }));
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+          .catch(err => toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` }));
+      }
+    }
+  }, [toast]);
   
   const imageUploadAspectRatio = imageDimensions ? imageDimensions.width / imageDimensions.height : 16/9;
 
@@ -232,7 +356,7 @@ export default function ColorBlindVisionApp() {
         <CardHeader className="text-center">
           <CardTitle className="font-headline text-3xl md:text-4xl text-primary">ColorBlind Vision</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Simulate red-green color blindness on your photos or with your live camera.
+            Simulate red-green color blindness on photos or with your live camera.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -331,20 +455,21 @@ export default function ColorBlindVisionApp() {
             <TabsContent value="camera" className="mt-6">
               <div className="flex flex-col items-center space-y-4">
                 <div 
-                  className="relative w-full bg-muted rounded-lg overflow-hidden shadow-md"
-                  style={{ aspectRatio: '16/9' }} // Default aspect ratio for camera view
+                  ref={cameraViewRef}
+                  className="relative w-full bg-muted rounded-lg overflow-hidden shadow-md dark:bg-neutral-800 camera-viewport"
+                  style={{ aspectRatio: '16/9' }}
                 >
-                  <video ref={videoRef} className="hidden" autoPlay muted playsInline />
+                  <video ref={videoRef} className="hidden w-full h-full object-contain" autoPlay muted playsInline />
                   <canvas ref={canvasRef} className="w-full h-full object-contain" />
                   
-                  {isCameraInitializing && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80">
+                  {(isCameraInitializing || isSwitchingCamera) && !cameraStreamState && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 dark:bg-neutral-800/80">
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      <p className="font-headline mt-2">Starting camera...</p>
+                      <p className="font-headline mt-2">{isSwitchingCamera ? 'Switching camera...' : 'Starting camera...'}</p>
                     </div>
                   )}
 
-                  {!cameraStreamState && !isCameraInitializing && hasCameraPermission !== false && (
+                  {!cameraStreamState && !isCameraInitializing && !isSwitchingCamera && hasCameraPermission !== false && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
                       <Camera size={64} className="mb-4 opacity-50" />
                       <p className="font-headline text-lg">Live camera feed will appear here</p>
@@ -360,7 +485,7 @@ export default function ColorBlindVisionApp() {
                     <AlertDescription>
                       Please enable camera permissions in your browser settings. 
                       <Button 
-                        onClick={() => setHasCameraPermission(null) } // Resets to allow re-try
+                        onClick={() => { setHasCameraPermission(null); setSelectedDeviceId(undefined); }} 
                         variant="link" 
                         className="p-0 h-auto ml-1 text-destructive-foreground underline"
                       >
@@ -370,23 +495,47 @@ export default function ColorBlindVisionApp() {
                   </Alert>
                 )}
 
-                {cameraStreamState && (
-                  <Button onClick={stopCurrentCamera} variant="destructive" className="w-full sm:w-auto">
-                    Stop Camera
-                  </Button>
-                )}
-                 {!cameraStreamState && hasCameraPermission !== false && !isCameraInitializing && (
-                   <Button onClick={() => { /* Effectively handled by useEffect on mode/hasCameraPermission change */ 
-                      if (hasCameraPermission === null) { // Trigger permission prompt if not yet decided
-                        setMode('camera'); // Ensure mode is camera to trigger useEffect
-                      }
-                    }} 
-                    className="w-full sm:w-auto"
-                    disabled={isCameraInitializing}
-                    >
-                     Start Camera
+                <div className="w-full flex flex-col sm:flex-row justify-center items-center gap-2">
+                  {!cameraStreamState && hasCameraPermission !== false && !isCameraInitializing && (
+                   <Button 
+                     onClick={() => { 
+                       if (hasCameraPermission === null) setHasCameraPermission(true); // Trigger attempt
+                       // Main effect will handle initialization
+                     }} 
+                     className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
+                     disabled={isCameraInitializing || isSwitchingCamera}
+                   >
+                     <Camera className="mr-2 h-5 w-5" /> Start Camera
                    </Button>
-                 )}
+                  )}
+                  {cameraStreamState && (
+                    <Button onClick={stopCurrentCamera} variant="destructive" className="flex-grow sm:flex-grow-0 w-full sm:w-auto">
+                      Stop Camera
+                    </Button>
+                  )}
+                  {cameraStreamState && videoDevices.length > 1 && (
+                    <Button 
+                      onClick={handleSwitchCamera} 
+                      variant="outline" 
+                      className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
+                      disabled={isSwitchingCamera || isCameraInitializing}
+                    >
+                      {isSwitchingCamera ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RefreshCcw className="mr-2 h-5 w-5" />}
+                      Switch Camera
+                    </Button>
+                  )}
+                  {cameraStreamState && (
+                     <Button 
+                        onClick={handleToggleFullscreen} 
+                        variant="outline" 
+                        className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
+                        disabled={isCameraInitializing}
+                      >
+                       {isFullscreenActive ? <Minimize className="mr-2 h-5 w-5" /> : <ScreenShare className="mr-2 h-5 w-5" />}
+                       {isFullscreenActive ? 'Exit Fullscreen' : 'Fullscreen'}
+                     </Button>
+                  )}
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -396,8 +545,21 @@ export default function ColorBlindVisionApp() {
         <p>&copy; {new Date().getFullYear()} ColorBlind Vision. All rights reserved.</p>
         <p className="text-xs mt-1">Simulation based on Deuteranopia (common red-green color blindness).</p>
       </footer>
+      <style jsx global>{`
+        .camera-viewport:fullscreen {
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          padding: 0; /* Remove padding in fullscreen */
+          background-color: #000; /* Black background for fullscreen */
+        }
+        .camera-viewport:fullscreen video,
+        .camera-viewport:fullscreen canvas {
+          object-fit: contain; /* Ensure video/canvas fits within the fullscreen view */
+        }
+      `}</style>
     </div>
   );
 }
-
     
