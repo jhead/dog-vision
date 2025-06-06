@@ -344,7 +344,7 @@ export default function ColorBlindVisionApp() {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const doc = document as Document & { webkitFullscreenElement?: Element, mozFullScreenElement?: Element, msFullscreenElement?: Element, webkitExitFullscreen?: () => Promise<void>; mozCancelFullScreen?: () => Promise<void>; msExitFullscreen?: () => Promise<void>; };
+      const doc = document as Document & { webkitFullscreenElement?: Element, mozFullScreenElement?: Element, msFullscreenElement?: Element };
       const fullscreenElement = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
       setIsFullscreenActive(!!fullscreenElement && fullscreenElement === cameraViewRef.current);
     };
@@ -363,26 +363,57 @@ export default function ColorBlindVisionApp() {
   const handleToggleFullscreen = useCallback(() => {
     if (!cameraViewRef.current) return;
 
-    const element = cameraViewRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void>; mozRequestFullScreen?: () => Promise<void>; msRequestFullscreen?: () => Promise<void>; };
-    const doc = document as Document & { webkitExitFullscreen?: () => Promise<void>; mozCancelFullScreen?: () => Promise<void>; msExitFullscreen?: () => Promise<void>; webkitFullscreenElement?: Element; mozFullScreenElement?: Element; msFullscreenElement?: Element; };
+    const element = cameraViewRef.current as HTMLDivElement & { 
+      webkitRequestFullscreen?: () => Promise<void>; 
+      mozRequestFullScreen?: () => Promise<void>; 
+      msRequestFullscreen?: () => Promise<void>; 
+    };
+    const doc = document as Document & { 
+      webkitExitFullscreen?: () => Promise<void>; 
+      mozCancelFullScreen?: () => Promise<void>; 
+      msExitFullscreen?: () => Promise<void>;
+      webkitFullscreenElement?: Element; 
+      mozFullScreenElement?: Element; 
+      msFullscreenElement?: Element; 
+    };
 
     const isCurrentlyFullscreen = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
 
     if (!isCurrentlyFullscreen) {
-      let requestMethod = element.requestFullscreen || element.webkitRequestFullscreen || element.mozRequestFullScreen || element.msRequestFullscreen;
-      
-      if (requestMethod) {
-        requestMethod.call(element).catch(err => {
+      if (typeof element.requestFullscreen === 'function') {
+        element.requestFullscreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` });
+        });
+      } else if (typeof element.webkitRequestFullscreen === 'function') {
+        element.webkitRequestFullscreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` });
+        });
+      } else if (typeof element.mozRequestFullScreen === 'function') {
+        element.mozRequestFullScreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` });
+        });
+      } else if (typeof element.msRequestFullscreen === 'function') {
+        element.msRequestFullscreen().catch(err => {
           toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` });
         });
       } else {
         toast({ variant: "destructive", title: "Fullscreen Not Supported", description: "Fullscreen API is not supported on this browser or for this element." });
       }
     } else {
-      let exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-
-      if (exitMethod) {
-        exitMethod.call(doc).catch(err => {
+      if (typeof doc.exitFullscreen === 'function') {
+        doc.exitFullscreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` });
+        });
+      } else if (typeof doc.webkitExitFullscreen === 'function') {
+        doc.webkitExitFullscreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` });
+        });
+      } else if (typeof doc.mozCancelFullScreen === 'function') {
+        doc.mozCancelFullScreen().catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` });
+        });
+      } else if (typeof doc.msExitFullscreen === 'function') {
+        doc.msExitFullscreen().catch(err => {
           toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` });
         });
       } else {
@@ -648,6 +679,8 @@ export default function ColorBlindVisionApp() {
     </div>
   );
 }
+    
+
     
 
     
