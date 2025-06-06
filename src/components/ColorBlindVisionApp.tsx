@@ -119,7 +119,7 @@ export default function ColorBlindVisionApp() {
         videoRef.current.pause();
       }
       if(videoRef.current.load) {
-        videoRef.current.load(); // Reset video element
+        videoRef.current.load(); 
       }
     }
     if (canvasRef.current) {
@@ -150,12 +150,12 @@ export default function ColorBlindVisionApp() {
       if (videoTracks.length > 0) {
           currentTrackDeviceId = videoTracks[0].getSettings().deviceId;
       }
-      stream.getTracks().forEach(track => track.stop()); // Stop generic stream
+      stream.getTracks().forEach(track => track.stop()); 
 
       if (currentVideoDevices.length > 0) {
         const rearCamera = currentVideoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
         const preferredDeviceId = currentTrackDeviceId || rearCamera?.deviceId || currentVideoDevices[0].deviceId;
-        setSelectedDeviceId(preferredDeviceId); // This triggers the main camera useEffect
+        setSelectedDeviceId(preferredDeviceId); 
       } else {
         toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected after permission.' });
         setHasCameraPermission(false);
@@ -173,7 +173,6 @@ export default function ColorBlindVisionApp() {
     }
   }, [mode, toast]);
 
-  // Main effect for starting/stopping camera stream based on selectedDeviceId and permissions
   useEffect(() => {
     let isMounted = true;
 
@@ -186,7 +185,7 @@ export default function ColorBlindVisionApp() {
 
       setIsCameraInitializing(true);
       setIsSwitchingCamera(true);
-      stopCurrentCamera(); // Ensure previous stream is stopped
+      stopCurrentCamera(); 
 
       try {
         const constraints: MediaStreamConstraints = { video: { deviceId: { exact: selectedDeviceId } } };
@@ -206,7 +205,6 @@ export default function ColorBlindVisionApp() {
               }
             };
           }
-          // Optionally refresh device list again here if needed, e.g., labels might be more complete
           const allDevices = await navigator.mediaDevices.enumerateDevices();
           const currentVideoDevices = allDevices.filter(device => device.kind === 'videoinput');
           setVideoDevices(currentVideoDevices);
@@ -217,14 +215,11 @@ export default function ColorBlindVisionApp() {
       } catch (error) {
         console.error('Error accessing camera with deviceId:', selectedDeviceId, error);
         if (isMounted) {
-          // Don't set hasCameraPermission to false here for a specific device error,
-          // as general permission might still be granted. User can try switching.
           toast({
             variant: 'destructive',
             title: 'Camera Device Error',
             description: `Failed to access the selected camera. Please try another one.`,
           });
-           // If this was the *only* camera, then it's a bigger issue.
           if (videoDevices.length <= 1) setHasCameraPermission(false);
         }
       } finally {
@@ -242,20 +237,15 @@ export default function ColorBlindVisionApp() {
       setIsCameraInitializing(false);
       setIsSwitchingCamera(false);
     } else {
-      // mode is 'camera' but conditions not met (e.g. permission null/false, or no selectedDeviceId)
-      // This state is usually waiting for user interaction (Start Camera button) or device selection.
       setIsCameraInitializing(false); 
       setIsSwitchingCamera(false);
     }
 
     return () => {
       isMounted = false;
-      // stopCurrentCamera(); // Stopping is handled by mode change or explicit stop button.
     };
   }, [mode, selectedDeviceId, hasCameraPermission, toast, stopCurrentCamera, videoDevices.length]);
 
-
-  // Effect for populating video devices if permission is already granted when switching to camera mode
    useEffect(() => {
     if (mode === 'camera' && hasCameraPermission === true && videoDevices.length === 0 && !selectedDeviceId) {
       const populateDevices = async () => {
@@ -269,7 +259,7 @@ export default function ColorBlindVisionApp() {
             setSelectedDeviceId(rearCamera?.deviceId || videoInputs[0].deviceId);
           } else if (videoInputs.length === 0) {
             toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected.'});
-            setHasCameraPermission(false); // No devices even if permission was true.
+            setHasCameraPermission(false); 
           }
         } catch (error) {
           console.error("Error enumerating devices:", error);
@@ -282,8 +272,6 @@ export default function ColorBlindVisionApp() {
     }
   }, [mode, hasCameraPermission, videoDevices.length, selectedDeviceId, toast]);
 
-
-  // Frame processing effect
   useEffect(() => { 
     const videoElement = videoRef.current;
     const canvasElement = canvasRef.current;
@@ -321,7 +309,7 @@ export default function ColorBlindVisionApp() {
       };
 
       videoElement.addEventListener('canplay', handleCanPlay);
-      if (videoElement.readyState >= 3) handleCanPlay(); // If already ready
+      if (videoElement.readyState >= 3) handleCanPlay(); 
 
       return () => {
         videoElement.removeEventListener('canplay', handleCanPlay);
@@ -338,7 +326,7 @@ export default function ColorBlindVisionApp() {
     }
   }, [mode, cameraStreamState]);
 
-  useEffect(() => { // Cleanup on unmount
+  useEffect(() => { 
     return () => stopCurrentCamera();
   }, [stopCurrentCamera]);
 
@@ -350,27 +338,55 @@ export default function ColorBlindVisionApp() {
     const nextDeviceId = videoDevices[nextIndex]?.deviceId;
 
     if (nextDeviceId && nextDeviceId !== selectedDeviceId) {
-      setSelectedDeviceId(nextDeviceId); // This triggers the main camera useEffect to restart with new device
+      setSelectedDeviceId(nextDeviceId); 
     }
   }, [videoDevices, selectedDeviceId, isSwitchingCamera, isCameraInitializing]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreenActive(!!document.fullscreenElement && document.fullscreenElement === cameraViewRef.current);
+      const doc = document as Document & { webkitFullscreenElement?: Element, mozFullScreenElement?: Element, msFullscreenElement?: Element, webkitExitFullscreen?: () => Promise<void>; mozCancelFullScreen?: () => Promise<void>; msExitFullscreen?: () => Promise<void>; };
+      const fullscreenElement = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+      setIsFullscreenActive(!!fullscreenElement && fullscreenElement === cameraViewRef.current);
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
   }, []);
 
   const handleToggleFullscreen = useCallback(() => {
     if (!cameraViewRef.current) return;
-    if (!document.fullscreenElement) {
-      cameraViewRef.current.requestFullscreen()
-        .catch(err => toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` }));
+
+    const element = cameraViewRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void>; mozRequestFullScreen?: () => Promise<void>; msRequestFullscreen?: () => Promise<void>; };
+    const doc = document as Document & { webkitExitFullscreen?: () => Promise<void>; mozCancelFullScreen?: () => Promise<void>; msExitFullscreen?: () => Promise<void>; webkitFullscreenElement?: Element; mozFullScreenElement?: Element; msFullscreenElement?: Element; };
+
+    const isCurrentlyFullscreen = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+
+    if (!isCurrentlyFullscreen) {
+      let requestMethod = element.requestFullscreen || element.webkitRequestFullscreen || element.mozRequestFullScreen || element.msRequestFullscreen;
+      
+      if (requestMethod) {
+        requestMethod.call(element).catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not enter fullscreen: ${err.message}` });
+        });
+      } else {
+        toast({ variant: "destructive", title: "Fullscreen Not Supported", description: "Fullscreen API is not supported on this browser or for this element." });
+      }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen()
-          .catch(err => toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` }));
+      let exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+
+      if (exitMethod) {
+        exitMethod.call(doc).catch(err => {
+          toast({ variant: "destructive", title: "Fullscreen Error", description: `Could not exit fullscreen: ${err.message}` });
+        });
+      } else {
+         toast({ variant: "destructive", title: "Fullscreen Not Supported", description: "Could not exit fullscreen. API not available." });
       }
     }
   }, [toast]);
@@ -390,9 +406,8 @@ export default function ColorBlindVisionApp() {
           <Tabs value={mode} onValueChange={(value) => {
               const newMode = value as 'upload' | 'camera';
               if (newMode === 'camera' && mode === 'upload') {
-                // Reset states if moving to camera and permission not yet granted
                 if (hasCameraPermission === null) {
-                    setSelectedDeviceId(undefined); // Ensures `attemptInitialCameraAccess` can pick best default
+                    setSelectedDeviceId(undefined); 
                 }
               }
               setMode(newMode);
@@ -528,7 +543,6 @@ export default function ColorBlindVisionApp() {
                         onClick={() => { 
                           setHasCameraPermission(null); 
                           setSelectedDeviceId(undefined); 
-                          // attemptInitialCameraAccess(); // Or let user click start again
                         }} 
                         variant="link" 
                         className="p-0 h-auto ml-1 text-destructive-foreground underline"
@@ -595,12 +609,45 @@ export default function ColorBlindVisionApp() {
           padding: 0;
           background-color: #000;
         }
+        .camera-viewport:-webkit-full-screen { /* Safari */
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          padding: 0;
+          background-color: #000;
+        }
+        .camera-viewport:-moz-full-screen { /* Firefox */
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          padding: 0;
+          background-color: #000;
+        }
+        .camera-viewport:-ms-fullscreen { /* IE/Edge */
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          padding: 0;
+          background-color: #000;
+        }
+
         .camera-viewport:fullscreen video,
-        .camera-viewport:fullscreen canvas {
+        .camera-viewport:fullscreen canvas,
+        .camera-viewport:-webkit-full-screen video,
+        .camera-viewport:-webkit-full-screen canvas,
+        .camera-viewport:-moz-full-screen video,
+        .camera-viewport:-moz-full-screen canvas,
+        .camera-viewport:-ms-fullscreen video,
+        .camera-viewport:-ms-fullscreen canvas {
           object-fit: contain;
         }
       `}</style>
     </div>
   );
 }
+    
+
     
