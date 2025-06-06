@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ChangeEvent, MediaDeviceInfo } from 'react';
+import type { ChangeEvent } from 'react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -14,7 +14,7 @@ import { Loader2, Upload, Image as ImageIcon, Camera, AlertTriangle, RefreshCcw,
 import { applyDeuteranopiaFilter } from '@/lib/colorblind';
 import { useToast } from "@/hooks/use-toast";
 
-export default function ColorBlindVisionApp() {
+export default function DogVisionApp() {
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [transformedImageSrc, setTransformedImageSrc] = useState<string | null>(null);
   const [isImageProcessing, setIsImageProcessing] = useState<boolean>(false);
@@ -428,9 +428,9 @@ export default function ColorBlindVisionApp() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-foreground">
       <Card className="w-full max-w-2xl shadow-xl">
         <CardHeader className="text-center">
-          <CardTitle className="font-headline text-3xl md:text-4xl text-primary">ColorBlind Vision</CardTitle>
+          <CardTitle className="font-headline text-3xl md:text-4xl text-primary">DogVision</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Simulate red-green color blindness on photos or with your live camera.
+            See the world through a dog's eyes! Experience how your furry friend sees colors on photos or with your live camera.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -444,8 +444,8 @@ export default function ColorBlindVisionApp() {
               setMode(newMode);
             }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upload">Image Upload</TabsTrigger>
-              <TabsTrigger value="camera">Live Camera</TabsTrigger>
+              <TabsTrigger value="upload">🐕 Photo Upload</TabsTrigger>
+              <TabsTrigger value="camera">📱 Live Camera</TabsTrigger>
             </TabsList>
             
             <TabsContent value="upload" className="mt-6">
@@ -459,7 +459,7 @@ export default function ColorBlindVisionApp() {
                   ref={fileInputRef}
                 />
                 <Button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto" variant="default" size="lg">
-                  <Upload className="mr-2 h-5 w-5" /> Upload Image
+                  <Upload className="mr-2 h-5 w-5" /> Upload Photo 🐾
                 </Button>
               </div>
 
@@ -476,8 +476,8 @@ export default function ColorBlindVisionApp() {
                     style={{ aspectRatio: `${imageUploadAspectRatio}` }}
                   >
                     <ImageIcon size={64} className="mb-4 opacity-50" />
-                    <p className="font-headline text-lg">Your images will appear here</p>
-                    <p className="text-sm">Upload an image to get started</p>
+                    <p className="font-headline text-lg">Your paw-some photos will appear here</p>
+                    <p className="text-sm">Upload a photo to see how your dog sees it!</p>
                   </div>
               )}
               
@@ -491,7 +491,7 @@ export default function ColorBlindVisionApp() {
                       src={originalImageSrc}
                       alt="Original"
                       className="absolute top-0 left-0 w-full h-full object-contain"
-                      aria-label="Original image"
+                      aria-label="Human vision of image"
                     />
                     {transformedImageSrc && (
                       <div
@@ -500,9 +500,9 @@ export default function ColorBlindVisionApp() {
                       >
                         <img
                           src={transformedImageSrc}
-                          alt="Colorblind Simulation"
+                          alt="Dog Vision Simulation"
                           className="absolute top-0 left-0 w-full h-full object-contain"
-                          aria-label="Colorblind simulated image"
+                          aria-label="How dogs see this image"
                         />
                       </div>
                     )}
@@ -517,8 +517,8 @@ export default function ColorBlindVisionApp() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 items-center">
-                    <Label htmlFor="imageSlider" className="text-sm text-center font-headline">Original</Label>
-                    <Label htmlFor="imageSlider" className="text-sm text-center font-headline">Deuteranopia</Label>
+                    <Label htmlFor="imageSlider" className="text-sm text-center font-headline">Human Vision</Label>
+                    <Label htmlFor="imageSlider" className="text-sm text-center font-headline">Dog Vision</Label>
                   </div>
                   <Slider
                     id="imageSlider"
@@ -556,7 +556,7 @@ export default function ColorBlindVisionApp() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
                       <Camera size={64} className="mb-4 opacity-50" />
                        <p className="font-headline text-lg">
-                        {hasCameraPermission === null ? "Click 'Start Camera' to begin" : "Camera feed will appear here"}
+                        {hasCameraPermission === null ? "Click 'Start Camera' to see through dog eyes!" : "Live dog vision feed will appear here"}
                       </p>
                       {hasCameraPermission === null && <p className="text-sm">Allow camera permission when prompted.</p>}
                     </div>
@@ -590,7 +590,7 @@ export default function ColorBlindVisionApp() {
                        className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
                        disabled={isCameraInitializing}
                      >
-                       <Camera className="mr-2 h-5 w-5" /> Start Camera
+                       <Camera className="mr-2 h-5 w-5" /> Start Camera 🐕
                      </Button>
                   )}
                   {cameraStreamState && hasCameraPermission === true && (
@@ -627,8 +627,8 @@ export default function ColorBlindVisionApp() {
         </CardContent>
       </Card>
       <footer className="mt-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} ColorBlind Vision. All rights reserved.</p>
-        <p className="text-xs mt-1">Simulation based on Deuteranopia (common red-green color blindness).</p>
+        <p>&copy; {new Date().getFullYear()} DogVision. All rights reserved.</p>
+        <p className="text-xs mt-1">Simulation based on how dogs see the world (Deuteranopia - common in canines).</p>
       </footer>
       <style jsx global>{`
         .camera-viewport:fullscreen {

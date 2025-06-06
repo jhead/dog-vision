@@ -1,4 +1,5 @@
 // Deuteranopia (Green-Blind) simulation matrix
+// This simulates how dogs see the world, as they have deuteranopia-like vision
 // Source: Vienot, F., Brettel, H., Mollon, J. D. (1999).
 // Digital video colourmaps for checking the legibility of displays by dichromats.
 // Color Research & Application, 24(4), 243-252.

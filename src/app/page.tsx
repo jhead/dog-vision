@@ -1,9 +1,9 @@
-import ColorBlindVisionApp from '@/components/ColorBlindVisionApp';
+import DogVisionApp from '@/components/DogVisionApp';
 
 export default function Home() {
   return (
     <main>
-      <ColorBlindVisionApp />
+      <DogVisionApp />
     </main>
   );
 }
