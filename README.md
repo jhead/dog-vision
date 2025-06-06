@@ -21,7 +21,17 @@ This app is automatically deployed to GitHub Pages when changes are pushed to th
 
 **Live Demo:** https://jhead.github.io/dog-vision/
 
-The deployment process:
+### PR Preview Deployments
+
+When you open a pull request, a preview deployment is automatically created at:
+`https://jhead.github.io/dog-vision/pr-{PR_NUMBER}/`
+
+The preview will update automatically when you push new changes to the PR, and will be cleaned up when the PR is closed.
+
+### Deployment Process
+
 1. Builds the Next.js app with static export
-2. Uploads the generated files to GitHub Pages
-3. The site is available at the GitHub Pages URL
+2. Deploys to the `gh-pages` branch using GitHub Actions
+3. GitHub Pages serves the site from the `gh-pages` branch
+
+**Note:** Make sure GitHub Pages is configured to deploy from the `gh-pages` branch in your repository settings.
