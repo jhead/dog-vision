@@ -15,7 +15,6 @@ import { applyDeuteranopiaFilter } from '@/lib/colorblind';
 import { useToast } from "@/hooks/use-toast";
 
 export default function ColorBlindVisionApp() {
-  // State for image upload mode
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [transformedImageSrc, setTransformedImageSrc] = useState<string | null>(null);
   const [isImageProcessing, setIsImageProcessing] = useState<boolean>(false);
@@ -23,20 +22,16 @@ export default function ColorBlindVisionApp() {
   const [imageDimensions, setImageDimensions] = useState<{ width: number, height: number} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // State for general app and camera mode
   const [mode, setMode] = useState<'upload' | 'camera'>('upload');
   const { toast } = useToast();
 
-  // State for live camera mode
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const [cameraStreamState, setCameraStreamState] = useState<MediaStream | null>(null); 
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null); // null: unknown, true: granted, false: denied
   const [isCameraInitializing, setIsCameraInitializing] = useState<boolean>(false);
-
-  // State for camera switching and fullscreen
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
   const [isSwitchingCamera, setIsSwitchingCamera] = useState<boolean>(false);
@@ -68,12 +63,10 @@ export default function ColorBlindVisionApp() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const imgSrc = e.target?.result as string;
-      
       const img = document.createElement('img');
       img.onload = () => {
         setOriginalImageSrc(imgSrc);
         setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
@@ -122,9 +115,11 @@ export default function ColorBlindVisionApp() {
     setCameraStreamState(null);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
-      if (videoRef.current.srcObject === null && videoRef.current.pause) { 
+      if (videoRef.current.pause) { 
         videoRef.current.pause();
-        videoRef.current.load(); 
+      }
+      if(videoRef.current.load) {
+        videoRef.current.load(); // Reset video element
       }
     }
     if (canvasRef.current) {
@@ -136,93 +131,101 @@ export default function ColorBlindVisionApp() {
     }
   }, []);
 
+  const attemptInitialCameraAccess = useCallback(async () => {
+    if (mode !== 'camera') return;
+
+    setIsCameraInitializing(true);
+    setHasCameraPermission(null); 
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setHasCameraPermission(true);
+
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const currentVideoDevices = allDevices.filter(device => device.kind === 'videoinput');
+      setVideoDevices(currentVideoDevices);
+      
+      let currentTrackDeviceId: string | undefined;
+      const videoTracks = stream.getVideoTracks();
+      if (videoTracks.length > 0) {
+          currentTrackDeviceId = videoTracks[0].getSettings().deviceId;
+      }
+      stream.getTracks().forEach(track => track.stop()); // Stop generic stream
+
+      if (currentVideoDevices.length > 0) {
+        const rearCamera = currentVideoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
+        const preferredDeviceId = currentTrackDeviceId || rearCamera?.deviceId || currentVideoDevices[0].deviceId;
+        setSelectedDeviceId(preferredDeviceId); // This triggers the main camera useEffect
+      } else {
+        toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected after permission.' });
+        setHasCameraPermission(false);
+      }
+    } catch (error) {
+      console.error('Initial camera access error:', error);
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Permission Denied',
+        description: 'Please enable camera permissions in your browser settings to use this feature.',
+      });
+    } finally {
+      setIsCameraInitializing(false);
+    }
+  }, [mode, toast]);
+
+  // Main effect for starting/stopping camera stream based on selectedDeviceId and permissions
   useEffect(() => {
     let isMounted = true;
 
-    const manageCameraStream = async () => {
-      if (!isMounted || mode !== 'camera' || hasCameraPermission === false) {
-        if (hasCameraPermission === false && cameraStreamRef.current) {
-            stopCurrentCamera();
-        }
+    const startSelectedCameraStream = async () => {
+      if (!isMounted || !selectedDeviceId || hasCameraPermission !== true || mode !== 'camera') {
+        setIsCameraInitializing(false);
+        setIsSwitchingCamera(false);
         return;
       }
 
       setIsCameraInitializing(true);
-      if (selectedDeviceId || videoDevices.length > 0) setIsSwitchingCamera(true);
-
-
-      if (cameraStreamRef.current) {
-        cameraStreamRef.current.getTracks().forEach(track => track.stop());
-        cameraStreamRef.current = null;
-      }
-      if (videoRef.current && videoRef.current.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
-      }
-      setCameraStreamState(null);
+      setIsSwitchingCamera(true);
+      stopCurrentCamera(); // Ensure previous stream is stopped
 
       try {
-        const allDevices = await navigator.mediaDevices.enumerateDevices();
-        const currentVideoDevices = allDevices.filter(device => device.kind === 'videoinput');
-        if (isMounted) {
-            setVideoDevices(currentVideoDevices);
-        }
-
-        let deviceIdToUse = selectedDeviceId;
-
-        if (!deviceIdToUse && currentVideoDevices.length > 0) {
-          const rearCamera = currentVideoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
-          deviceIdToUse = rearCamera?.deviceId || currentVideoDevices[0]?.deviceId;
-          
-          if (isMounted && deviceIdToUse) {
-            setSelectedDeviceId(deviceIdToUse);
-            // Effect will re-run with new selectedDeviceId, exit current run.
-            setIsCameraInitializing(false); 
-            setIsSwitchingCamera(false); // Resetting flags for next run
-            return; 
-          }
-        }
-        
-        if (!deviceIdToUse && currentVideoDevices.length === 0 && isMounted) {
-            toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected.' });
-            setHasCameraPermission(false);
-            setIsCameraInitializing(false); setIsSwitchingCamera(false);
-            return;
-        }
-        if (!deviceIdToUse && isMounted) {
-            toast({ variant: 'destructive', title: 'Camera Selection Error', description: 'Could not select a camera.' });
-            setIsCameraInitializing(false); setIsSwitchingCamera(false);
-            return;
-        }
-
-        const constraints: MediaStreamConstraints = { video: { deviceId: { exact: deviceIdToUse } } };
+        const constraints: MediaStreamConstraints = { video: { deviceId: { exact: selectedDeviceId } } };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         if (isMounted) {
           cameraStreamRef.current = stream;
           setCameraStreamState(stream);
-          setHasCameraPermission(true);
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.onloadedmetadata = () => {
               if (isMounted && videoRef.current) {
-                 videoRef.current.play().catch(err => {
-                    console.error("Error playing video:", err);
-                    toast({ variant: "destructive", title: "Video Play Error", description: "Could not play camera stream." });
+                videoRef.current.play().catch(err => {
+                  console.error("Error playing video:", err);
+                  toast({ variant: "destructive", title: "Video Play Error", description: "Could not play camera stream." });
                 });
               }
             };
           }
+          // Optionally refresh device list again here if needed, e.g., labels might be more complete
+          const allDevices = await navigator.mediaDevices.enumerateDevices();
+          const currentVideoDevices = allDevices.filter(device => device.kind === 'videoinput');
+          setVideoDevices(currentVideoDevices);
+
+        } else {
+          stream.getTracks().forEach(track => track.stop());
         }
       } catch (error) {
-        console.error('Error accessing camera:', error);
+        console.error('Error accessing camera with deviceId:', selectedDeviceId, error);
         if (isMounted) {
-          setHasCameraPermission(false);
+          // Don't set hasCameraPermission to false here for a specific device error,
+          // as general permission might still be granted. User can try switching.
           toast({
             variant: 'destructive',
-            title: 'Camera Access Error',
-            description: 'Please enable camera permissions or try a different camera.',
+            title: 'Camera Device Error',
+            description: `Failed to access the selected camera. Please try another one.`,
           });
+           // If this was the *only* camera, then it's a bigger issue.
+          if (videoDevices.length <= 1) setHasCameraPermission(false);
         }
       } finally {
         if (isMounted) {
@@ -232,38 +235,62 @@ export default function ColorBlindVisionApp() {
       }
     };
 
-    if (mode === 'camera') {
-        if (hasCameraPermission !== false) {
-            manageCameraStream();
-        }
-    } else {
+    if (mode === 'camera' && hasCameraPermission === true && selectedDeviceId) {
+      startSelectedCameraStream();
+    } else if (mode !== 'camera') {
       stopCurrentCamera();
-      if (isMounted) {
-        // Don't clear videoDevices or selectedDeviceId here, user might want to switch back.
-        // If fullscreen was active, it should be exited by browser or user.
-      }
+      setIsCameraInitializing(false);
+      setIsSwitchingCamera(false);
+    } else {
+      // mode is 'camera' but conditions not met (e.g. permission null/false, or no selectedDeviceId)
+      // This state is usually waiting for user interaction (Start Camera button) or device selection.
+      setIsCameraInitializing(false); 
+      setIsSwitchingCamera(false);
     }
 
     return () => {
       isMounted = false;
-      if (cameraStreamRef.current) {
-        cameraStreamRef.current.getTracks().forEach(track => track.stop());
-        cameraStreamRef.current = null;
-      }
-      if (videoRef.current && videoRef.current.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-         videoRef.current.srcObject = null;
-      }
+      // stopCurrentCamera(); // Stopping is handled by mode change or explicit stop button.
     };
-  }, [mode, selectedDeviceId, hasCameraPermission, stopCurrentCamera, toast]);
+  }, [mode, selectedDeviceId, hasCameraPermission, toast, stopCurrentCamera, videoDevices.length]);
 
+
+  // Effect for populating video devices if permission is already granted when switching to camera mode
+   useEffect(() => {
+    if (mode === 'camera' && hasCameraPermission === true && videoDevices.length === 0 && !selectedDeviceId) {
+      const populateDevices = async () => {
+        setIsCameraInitializing(true);
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter(device => device.kind === 'videoinput');
+          setVideoDevices(videoInputs);
+          if (videoInputs.length > 0) {
+            const rearCamera = videoInputs.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
+            setSelectedDeviceId(rearCamera?.deviceId || videoInputs[0].deviceId);
+          } else if (videoInputs.length === 0) {
+            toast({ variant: 'destructive', title: 'No Cameras Found', description: 'No video input devices detected.'});
+            setHasCameraPermission(false); // No devices even if permission was true.
+          }
+        } catch (error) {
+          console.error("Error enumerating devices:", error);
+          toast({ variant: 'destructive', title: 'Device Error', description: 'Could not list camera devices.'});
+        } finally {
+          setIsCameraInitializing(false);
+        }
+      };
+      populateDevices();
+    }
+  }, [mode, hasCameraPermission, videoDevices.length, selectedDeviceId, toast]);
+
+
+  // Frame processing effect
   useEffect(() => { 
     const videoElement = videoRef.current;
     const canvasElement = canvasRef.current;
 
     if (mode === 'camera' && cameraStreamState && videoElement && canvasElement) {
       const processFrame = () => {
-        if (!videoRef.current || !canvasRef.current || videoRef.current.paused || videoRef.current.ended || videoRef.current.readyState < 3) {
+        if (!videoRef.current || !canvasRef.current || videoRef.current.paused || videoRef.current.ended || videoRef.current.readyState < 3 || !cameraStreamRef.current) {
           if(cameraStreamRef.current && animationFrameIdRef.current !== null) animationFrameIdRef.current = requestAnimationFrame(processFrame);
           return;
         }
@@ -294,7 +321,7 @@ export default function ColorBlindVisionApp() {
       };
 
       videoElement.addEventListener('canplay', handleCanPlay);
-      if (videoElement.readyState >= 3) handleCanPlay();
+      if (videoElement.readyState >= 3) handleCanPlay(); // If already ready
 
       return () => {
         videoElement.removeEventListener('canplay', handleCanPlay);
@@ -316,16 +343,16 @@ export default function ColorBlindVisionApp() {
   }, [stopCurrentCamera]);
 
   const handleSwitchCamera = useCallback(async () => {
-    if (videoDevices.length < 2 || isSwitchingCamera) return;
+    if (videoDevices.length < 2 || isSwitchingCamera || isCameraInitializing) return;
     
     const currentIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
     const nextIndex = (currentIndex + 1) % videoDevices.length;
     const nextDeviceId = videoDevices[nextIndex]?.deviceId;
 
     if (nextDeviceId && nextDeviceId !== selectedDeviceId) {
-      setSelectedDeviceId(nextDeviceId); // This will trigger the main camera useEffect
+      setSelectedDeviceId(nextDeviceId); // This triggers the main camera useEffect to restart with new device
     }
-  }, [videoDevices, selectedDeviceId, isSwitchingCamera]);
+  }, [videoDevices, selectedDeviceId, isSwitchingCamera, isCameraInitializing]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -360,7 +387,16 @@ export default function ColorBlindVisionApp() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Tabs value={mode} onValueChange={(value) => setMode(value as 'upload' | 'camera')} className="w-full">
+          <Tabs value={mode} onValueChange={(value) => {
+              const newMode = value as 'upload' | 'camera';
+              if (newMode === 'camera' && mode === 'upload') {
+                // Reset states if moving to camera and permission not yet granted
+                if (hasCameraPermission === null) {
+                    setSelectedDeviceId(undefined); // Ensures `attemptInitialCameraAccess` can pick best default
+                }
+              }
+              setMode(newMode);
+            }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="upload">Image Upload</TabsTrigger>
               <TabsTrigger value="camera">Live Camera</TabsTrigger>
@@ -462,18 +498,22 @@ export default function ColorBlindVisionApp() {
                   <video ref={videoRef} className="hidden w-full h-full object-contain" autoPlay muted playsInline />
                   <canvas ref={canvasRef} className="w-full h-full object-contain" />
                   
-                  {(isCameraInitializing || isSwitchingCamera) && !cameraStreamState && (
+                  {(isCameraInitializing || (isSwitchingCamera && !cameraStreamState)) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 dark:bg-neutral-800/80">
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      <p className="font-headline mt-2">{isSwitchingCamera ? 'Switching camera...' : 'Starting camera...'}</p>
+                      <p className="font-headline mt-2">
+                        {isSwitchingCamera ? 'Switching camera...' : 'Starting camera...'}
+                      </p>
                     </div>
                   )}
 
-                  {!cameraStreamState && !isCameraInitializing && !isSwitchingCamera && hasCameraPermission !== false && (
+                  {!cameraStreamState && !isCameraInitializing && hasCameraPermission !== false && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
                       <Camera size={64} className="mb-4 opacity-50" />
-                      <p className="font-headline text-lg">Live camera feed will appear here</p>
-                      {hasCameraPermission === null && <p className="text-sm">Allow camera permission to start.</p>}
+                       <p className="font-headline text-lg">
+                        {hasCameraPermission === null ? "Click 'Start Camera' to begin" : "Camera feed will appear here"}
+                      </p>
+                      {hasCameraPermission === null && <p className="text-sm">Allow camera permission when prompted.</p>}
                     </div>
                   )}
                 </div>
@@ -485,7 +525,11 @@ export default function ColorBlindVisionApp() {
                     <AlertDescription>
                       Please enable camera permissions in your browser settings. 
                       <Button 
-                        onClick={() => { setHasCameraPermission(null); setSelectedDeviceId(undefined); }} 
+                        onClick={() => { 
+                          setHasCameraPermission(null); 
+                          setSelectedDeviceId(undefined); 
+                          // attemptInitialCameraAccess(); // Or let user click start again
+                        }} 
                         variant="link" 
                         className="p-0 h-auto ml-1 text-destructive-foreground underline"
                       >
@@ -496,24 +540,21 @@ export default function ColorBlindVisionApp() {
                 )}
 
                 <div className="w-full flex flex-col sm:flex-row justify-center items-center gap-2">
-                  {!cameraStreamState && hasCameraPermission !== false && !isCameraInitializing && (
-                   <Button 
-                     onClick={() => { 
-                       if (hasCameraPermission === null) setHasCameraPermission(true); // Trigger attempt
-                       // Main effect will handle initialization
-                     }} 
-                     className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
-                     disabled={isCameraInitializing || isSwitchingCamera}
-                   >
-                     <Camera className="mr-2 h-5 w-5" /> Start Camera
-                   </Button>
+                  {mode === 'camera' && hasCameraPermission === null && !isCameraInitializing && (
+                     <Button 
+                       onClick={attemptInitialCameraAccess} 
+                       className="flex-grow sm:flex-grow-0 w-full sm:w-auto"
+                       disabled={isCameraInitializing}
+                     >
+                       <Camera className="mr-2 h-5 w-5" /> Start Camera
+                     </Button>
                   )}
-                  {cameraStreamState && (
-                    <Button onClick={stopCurrentCamera} variant="destructive" className="flex-grow sm:flex-grow-0 w-full sm:w-auto">
+                  {cameraStreamState && hasCameraPermission === true && (
+                    <Button onClick={() => { stopCurrentCamera(); setHasCameraPermission(null); setSelectedDeviceId(undefined);}} variant="destructive" className="flex-grow sm:flex-grow-0 w-full sm:w-auto">
                       Stop Camera
                     </Button>
                   )}
-                  {cameraStreamState && videoDevices.length > 1 && (
+                  {cameraStreamState && hasCameraPermission === true && videoDevices.length > 1 && (
                     <Button 
                       onClick={handleSwitchCamera} 
                       variant="outline" 
@@ -524,7 +565,7 @@ export default function ColorBlindVisionApp() {
                       Switch Camera
                     </Button>
                   )}
-                  {cameraStreamState && (
+                  {cameraStreamState && hasCameraPermission === true && (
                      <Button 
                         onClick={handleToggleFullscreen} 
                         variant="outline" 
@@ -551,12 +592,12 @@ export default function ColorBlindVisionApp() {
           height: 100vh !important;
           max-width: none !important;
           max-height: none !important;
-          padding: 0; /* Remove padding in fullscreen */
-          background-color: #000; /* Black background for fullscreen */
+          padding: 0;
+          background-color: #000;
         }
         .camera-viewport:fullscreen video,
         .camera-viewport:fullscreen canvas {
-          object-fit: contain; /* Ensure video/canvas fits within the fullscreen view */
+          object-fit: contain;
         }
       `}</style>
     </div>
