@@ -360,7 +360,7 @@ export default function ColorBlindVisionApp() {
     };
   }, []);
 
-  const handleToggleFullscreen = useCallback(() => {
+ const handleToggleFullscreen = useCallback(() => {
     if (!cameraViewRef.current) return;
 
     const element = cameraViewRef.current as HTMLDivElement & { 
@@ -538,8 +538,7 @@ export default function ColorBlindVisionApp() {
               <div className="flex flex-col items-center space-y-4">
                 <div 
                   ref={cameraViewRef}
-                  className="relative w-full bg-muted rounded-lg overflow-hidden shadow-md dark:bg-neutral-800 camera-viewport"
-                  style={{ aspectRatio: '16/9' }}
+                  className="relative w-full bg-muted rounded-lg overflow-hidden shadow-md dark:bg-neutral-800 camera-viewport aspect-[3/4] sm:aspect-video"
                 >
                   <video ref={videoRef} className="hidden w-full h-full object-contain" autoPlay muted playsInline />
                   <canvas ref={canvasRef} className="w-full h-full object-contain" />
