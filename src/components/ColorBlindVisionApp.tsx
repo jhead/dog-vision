@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ChangeEvent, MediaDeviceInfo } from 'react';
+import type { ChangeEvent } from 'react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
