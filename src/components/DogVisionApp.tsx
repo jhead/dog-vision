@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Upload, Image as ImageIcon, Camera, AlertTriangle, RefreshCcw, ScreenShare, Minimize } from 'lucide-react';
-import { applyDeuteranopiaFilter } from '@/lib/colorblind';
+import { applyCanineVisionFilter } from '@/lib/canine-vision';
 import { useToast } from "@/hooks/use-toast";
 
 export default function DogVisionApp() {
@@ -79,7 +79,7 @@ export default function DogVisionApp() {
         ctx.drawImage(img, 0, 0);
         try {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const transformedImageData = applyDeuteranopiaFilter(imageData);
+          const transformedImageData = applyCanineVisionFilter(imageData);
           ctx.putImageData(transformedImageData, 0, 0);
           setTransformedImageSrc(canvas.toDataURL());
           setSliderPosition(50);
@@ -294,7 +294,7 @@ export default function DogVisionApp() {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           try {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const transformedImageData = applyDeuteranopiaFilter(imageData);
+            const transformedImageData = applyCanineVisionFilter(imageData);
             ctx.putImageData(transformedImageData, 0, 0);
           } catch (e) {
             console.error("Error processing frame:", e);
@@ -628,7 +628,7 @@ export default function DogVisionApp() {
       </Card>
       <footer className="mt-8 text-center text-sm text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} DogVision. All rights reserved.</p>
-        <p className="text-xs mt-1">Simulation based on how dogs see the world (Deuteranopia - common in canines).</p>
+        <p className="text-xs mt-1">Simulation based on actual canine vision science - dogs see primarily in blue and yellow spectra with rod-enhanced low-light perception.</p>
       </footer>
       <style jsx global>{`
         .camera-viewport:fullscreen {
