@@ -2,7 +2,7 @@
 
 https://jhead.github.io/dog-vision/
 
-This was vibe coded just to see like my dog for fun, don't hate me. 
+Vibe coded web app that converts a photo or live camera view into the color space a dog sees (supposedly).
 
 It runs fully client-side in your browser, nothing gets uploaded to a server.
 
