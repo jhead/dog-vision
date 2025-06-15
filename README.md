@@ -4,6 +4,8 @@ https://jhead.github.io/dog-vision/
 
 This was vibe coded just to see like my dog for fun, don't hate me. 
 
+It runs fully client-side in your browser, nothing gets uploaded to a server.
+
 (the rest of this was written by AI)
 
 ## About
