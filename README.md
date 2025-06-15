@@ -6,6 +6,8 @@ Vibe coded web app that converts a photo or live camera view into the color spac
 
 It runs fully client-side in your browser, nothing gets uploaded to a server.
 
+App was prototyped in Firebase Studio, exported to GitHub, and enhanced with the GitHub coding agent.
+
 (the rest of this was written by AI)
 
 ## About
